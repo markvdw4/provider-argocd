@@ -63,7 +63,7 @@ fi
 
 # setup package cache
 echo_step "setting up local package cache"
-CACHE_PATH="${projectdir}/.work/inttest-package-cache"
+CACHE_PATH="${projectdir}/.work/inttest-package-cache/xpkg.crossplane.io/"
 mkdir -p "${CACHE_PATH}"
 echo "created cache dir at ${CACHE_PATH}"
 "${UP}" alpha xpkg xp-extract --from-xpkg "${OUTPUT_DIR}"/xpkg/"${HOSTOS}"_"${SAFEHOSTARCH}"/"${PACKAGE_NAME}"-"${VERSION}".xpkg -o "${CACHE_PATH}/${PACKAGE_NAME}.gz" && chmod 644 "${CACHE_PATH}/${PACKAGE_NAME}.gz"
@@ -132,7 +132,7 @@ echo "${PVC_YAML}" | "${KUBECTL}" create -f -
 # install crossplane from stable channel
 echo_step "installing crossplane from stable channel"
 "${HELM}" repo add crossplane-stable https://charts.crossplane.io/stable/
-chart_version="1.14.5"
+chart_version="2.0.2"
 echo_info "using crossplane version ${chart_version}"
 echo
 # we replace empty dir with our PVC so that the /cache dir in the kind node
@@ -151,7 +151,7 @@ kind: Provider
 metadata:
   name: "${PACKAGE_NAME}"
 spec:
-  package: "${PACKAGE_NAME}"
+  package: src/provider-sql/.work/inttest-package-cache/xpkg.crossplane.io/provider-argocd:latest.gz
   packagePullPolicy: Never
 EOF
 )"
