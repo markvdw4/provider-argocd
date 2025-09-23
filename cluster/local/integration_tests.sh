@@ -191,7 +191,7 @@ echo "${INSTALL_YAML}" | "${KUBECTL}" delete -f -
 timeout=60
 current=0
 step=3
-while [[ $(kubectl get providerrevision.pkg.crossplane.io -o name | wc -l) != "0" ]]; do
+while [[ $(kubectl get providerrevision.pkg.crossplane.io -o name | wc -l) -ne 0 ]]; do
   echo "waiting for provider to be deleted for another $step seconds"
   current=$current+$step
   if ! [[ $timeout > $current ]]; then
