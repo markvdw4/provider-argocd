@@ -84,7 +84,7 @@ EOF
 echo "${KIND_CONFIG}" | "${KIND}" create cluster --name="${K8S_CLUSTER}" --wait=5m --image="${KIND_NODE_IMAGE}" --config=-
 
 # tag controller image and load it into kind cluster
-PACKAGE_NAME_REF="xpkg.upbound.io/$PACKAGE_NAME"
+PACKAGE_NAME_REF="xpkg.crossplane.io/$PACKAGE_NAME"
 docker tag "${CONTROLLER_IMAGE}" "${PACKAGE_NAME_REF}"
 "${KIND}" load docker-image "${PACKAGE_NAME_REF}" --name="${K8S_CLUSTER}"
 
@@ -151,7 +151,7 @@ kind: Provider
 metadata:
   name: "${PACKAGE_NAME}"
 spec:
-  package: xpkg.crossplane.io/provider-argocd:latest.gz
+  package: xpkg.crossplane.io/provider-argocd:latest
   packagePullPolicy: Never
 EOF
 )"
