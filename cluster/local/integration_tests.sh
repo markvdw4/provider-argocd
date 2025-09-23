@@ -63,7 +63,7 @@ fi
 
 # setup package cache
 echo_step "setting up local package cache"
-CACHE_PATH="${projectdir}/.work/inttest-package-cache/"
+CACHE_PATH="${projectdir}/.work/inttest-package-cache"
 mkdir -p "${CACHE_PATH}/xpkg.crossplane.io"
 echo "created cache dir at ${CACHE_PATH}"
 "${UP}" alpha xpkg xp-extract --from-xpkg "${OUTPUT_DIR}"/xpkg/linux_"${SAFEHOSTARCH}"/"${PACKAGE_NAME}"-"${VERSION}".xpkg -o "${CACHE_PATH}/xpkg.crossplane.io/${PACKAGE_NAME}:latest.gz" && chmod 644 "${CACHE_PATH}/xpkg.crossplane.io/${PACKAGE_NAME}:latest.gz"
@@ -78,7 +78,7 @@ nodes:
 - role: control-plane
   extraMounts:
   - hostPath: "${CACHE_PATH}/"
-    containerPath: /cache/xpkg
+    containerPath: /cache
 EOF
 )"
 echo "${KIND_CONFIG}" | "${KIND}" create cluster --name="${K8S_CLUSTER}" --wait=5m --image="${KIND_NODE_IMAGE}" --config=-
