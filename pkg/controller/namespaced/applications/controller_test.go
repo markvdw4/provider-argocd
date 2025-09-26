@@ -31,6 +31,7 @@ import (
 	"go.uber.org/mock/gomock"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	clusterappv1alpha1 "github.com/crossplane-contrib/provider-argocd/apis/cluster/applications/v1alpha1"
 	"github.com/crossplane-contrib/provider-argocd/apis/namespaced/applications/v1alpha1"
 	"github.com/crossplane-contrib/provider-argocd/pkg/clients/applications"
 	mockclient "github.com/crossplane-contrib/provider-argocd/pkg/clients/mock/applications"
@@ -51,10 +52,18 @@ var (
 	testApplicationFinalizers   = []string{"resources-finalizer.argocd.argoproj.io"}
 )
 
-type args struct {
+type argsNamespaced struct {
 	client applications.ServiceClient
 	cr     *v1alpha1.Application
 }
+
+type argsCluster struct {
+	client applications.ServiceClient
+	cr     *clusterappv1alpha1.Application
+}
+
+// Keep the original args type for backward compatibility with existing tests
+type args = argsNamespaced
 
 type mockModifier func(*mockclient.MockServiceClient)
 
@@ -73,7 +82,16 @@ func Application(m ...ApplicationModifier) *v1alpha1.Application {
 	return cr
 }
 
+func ClusterApplication(m ...ClusterApplicationModifier) *clusterappv1alpha1.Application {
+	cr := &clusterappv1alpha1.Application{}
+	for _, f := range m {
+		f(cr)
+	}
+	return cr
+}
+
 type ApplicationModifier func(*v1alpha1.Application)
+type ClusterApplicationModifier func(*clusterappv1alpha1.Application)
 
 func withExternalName(v string) ApplicationModifier {
 	return func(s *v1alpha1.Application) {
@@ -99,11 +117,36 @@ func withObservation(p v1alpha1.ArgoApplicationStatus) ApplicationModifier {
 	return func(r *v1alpha1.Application) { r.Status.AtProvider = p }
 }
 
+// Cluster Application Modifiers
+func withClusterExternalName(v string) ClusterApplicationModifier {
+	return func(s *clusterappv1alpha1.Application) {
+		meta.SetExternalName(s, v)
+	}
+}
+
+func withClusterName(v string) ClusterApplicationModifier {
+	return func(s *clusterappv1alpha1.Application) {
+		s.Name = v
+	}
+}
+
+func withClusterSpec(p clusterappv1alpha1.ApplicationParameters) ClusterApplicationModifier {
+	return func(r *clusterappv1alpha1.Application) { r.Spec.ForProvider = p }
+}
+
+func withClusterAppNamespace(n *string) ClusterApplicationModifier {
+	return func(r *clusterappv1alpha1.Application) { r.Spec.ForProvider.AppNamespace = n }
+}
+
+func withClusterObservation(p clusterappv1alpha1.ArgoApplicationStatus) ClusterApplicationModifier {
+	return func(r *clusterappv1alpha1.Application) { r.Status.AtProvider = p }
+}
+
 func withConditions(c ...xpv1.Condition) ApplicationModifier {
 	return func(r *v1alpha1.Application) { r.Status.ConditionedStatus.Conditions = c }
 }
 
-func TestObserve(t *testing.T) {
+func TestObserveNamespaced(t *testing.T) {
 	type want struct {
 		cr     *v1alpha1.Application
 		result managed.ExternalObservation
@@ -111,11 +154,11 @@ func TestObserve(t *testing.T) {
 	}
 
 	cases := map[string]struct {
-		args
+		args argsNamespaced
 		want
 	}{
 		"SuccessfulAvailable": {
-			args: args{
+			args: argsNamespaced{
 				client: withMockClient(t, func(mcs *mockclient.MockServiceClient) {
 					mcs.EXPECT().List(
 						context.Background(),
@@ -242,7 +285,7 @@ func TestObserve(t *testing.T) {
 			},
 		},
 		"SuccessfulAvailableWithAppNamespace": {
-			args: args{
+			args: argsNamespaced{
 				client: withMockClient(t, func(mcs *mockclient.MockServiceClient) {
 					mcs.EXPECT().List(
 						context.Background(),
@@ -540,7 +583,7 @@ func TestObserve(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			e := &external{client: tc.client}
+			e := &external{client: tc.args.client}
 			o, err := e.Observe(context.Background(), tc.args.cr)
 
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
@@ -594,7 +637,7 @@ func TestCreate(t *testing.T) {
 	}
 
 	cases := map[string]struct {
-		args
+		args args
 		want
 	}{
 		"Successful": {
@@ -654,7 +697,7 @@ func TestCreate(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			e := &external{client: tc.client}
+			e := &external{client: tc.args.client}
 			o, err := e.Create(context.Background(), tc.args.cr)
 
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
@@ -678,7 +721,7 @@ func TestUpdate(t *testing.T) {
 	}
 
 	cases := map[string]struct {
-		args
+		args args
 		want
 	}{
 		"Successful": {
@@ -843,7 +886,7 @@ func TestUpdate(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			e := &external{client: tc.client}
+			e := &external{client: tc.args.client}
 			u, err := e.Update(context.Background(), tc.args.cr)
 
 			if diff := cmp.Diff(tc.want.err, err, test.EquateErrors()); diff != "" {
@@ -867,7 +910,7 @@ func TestDelete(t *testing.T) {
 	}
 
 	cases := map[string]struct {
-		args
+		args args
 		want
 	}{
 		"Successful": {
@@ -1009,7 +1052,7 @@ func TestDelete(t *testing.T) {
 
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			e := &external{client: tc.client}
+			e := &external{client: tc.args.client}
 			got, err := e.Delete(context.Background(), tc.args.cr)
 
 			if diff := cmp.Diff(tc.want.res, got); diff != "" {
@@ -1023,4 +1066,148 @@ func TestDelete(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestUnifiedController tests that the unified controller can handle both namespaced and cluster-scoped applications
+func TestUnifiedController(t *testing.T) {
+	// Test namespaced Application
+	t.Run("NamespacedApplication", func(t *testing.T) {
+		e := &external{
+			client: withMockClient(t, func(mcs *mockclient.MockServiceClient) {
+				mcs.EXPECT().List(
+					context.Background(),
+					&argocdApplication.ApplicationQuery{
+						Name:     &testApplicationExternalName,
+						Projects: []string{testProjectName},
+					},
+				).Return(
+					&argocdv1alpha1.ApplicationList{
+						Items: []argocdv1alpha1.Application{{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      testApplicationExternalName,
+								Namespace: testAppNamespace,
+							},
+							Status: argocdv1alpha1.ApplicationStatus{
+								Health: argocdv1alpha1.HealthStatus{
+									Status: "Healthy",
+								},
+							},
+						}},
+					},
+					nil,
+				)
+			}),
+		}
+
+		cr := Application(
+			withExternalName(testApplicationExternalName),
+			withName(testApplicationExternalName),
+			withSpec(v1alpha1.ApplicationParameters{
+				Project: testProjectName,
+			}),
+		)
+
+		obs, err := e.Observe(context.Background(), cr)
+		if err != nil {
+			t.Errorf("Observe() error = %v", err)
+		}
+		if !obs.ResourceExists {
+			t.Error("Expected resource to exist")
+		}
+	})
+
+	// Test cluster-scoped Application
+	t.Run("ClusterApplication", func(t *testing.T) {
+		e := &external{
+			client: withMockClient(t, func(mcs *mockclient.MockServiceClient) {
+				mcs.EXPECT().List(
+					context.Background(),
+					&argocdApplication.ApplicationQuery{
+						Name:     &testApplicationExternalName,
+						Projects: []string{testProjectName},
+					},
+				).Return(
+					&argocdv1alpha1.ApplicationList{
+						Items: []argocdv1alpha1.Application{{
+							ObjectMeta: metav1.ObjectMeta{
+								Name:      testApplicationExternalName,
+								Namespace: testAppNamespace,
+							},
+							Status: argocdv1alpha1.ApplicationStatus{
+								Health: argocdv1alpha1.HealthStatus{
+									Status: "Healthy",
+								},
+							},
+						}},
+					},
+					nil,
+				)
+			}),
+		}
+
+		cr := ClusterApplication(
+			withClusterExternalName(testApplicationExternalName),
+			withClusterName(testApplicationExternalName),
+			withClusterSpec(clusterappv1alpha1.ApplicationParameters{
+				Project: testProjectName,
+			}),
+		)
+
+		obs, err := e.Observe(context.Background(), cr)
+		if err != nil {
+			t.Errorf("Observe() error = %v", err)
+		}
+		if !obs.ResourceExists {
+			t.Error("Expected resource to exist")
+		}
+	})
+
+	// Test Create operations
+	t.Run("CreateNamespaced", func(t *testing.T) {
+		e := &external{
+			client: withMockClient(t, func(mcs *mockclient.MockServiceClient) {
+				mcs.EXPECT().Create(
+					context.Background(),
+					gomock.Any(),
+				).Return(
+					&argocdv1alpha1.Application{},
+					nil,
+				)
+			}),
+		}
+
+		cr := Application(
+			withExternalName(testApplicationExternalName),
+			withName(testApplicationExternalName),
+		)
+
+		_, err := e.Create(context.Background(), cr)
+		if err != nil {
+			t.Errorf("Create() error = %v", err)
+		}
+	})
+
+	t.Run("CreateCluster", func(t *testing.T) {
+		e := &external{
+			client: withMockClient(t, func(mcs *mockclient.MockServiceClient) {
+				mcs.EXPECT().Create(
+					context.Background(),
+					gomock.Any(),
+				).Return(
+					&argocdv1alpha1.Application{},
+					nil,
+				)
+			}),
+		}
+
+		cr := ClusterApplication(
+			withClusterExternalName(testApplicationExternalName),
+			withClusterName(testApplicationExternalName),
+		)
+
+		_, err := e.Create(context.Background(), cr)
+		if err != nil {
+			t.Errorf("Create() error = %v", err)
+		}
+	})
 }
